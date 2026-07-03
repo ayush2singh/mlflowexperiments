@@ -1,0 +1,7 @@
+# Virtual Environments
+mlfenv/
+venv/
+env/
+.env/
+.venv/
+.env
