@@ -7,17 +7,15 @@ import numpy as np
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import ElasticNet
+from urllib.parse import urlparse
 import mlflow
 from mlflow.models import infer_signature
 import mlflow.sklearn
+
 import logging
 
-# --- Setup Logging & Local Tracking ---
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
-
-# THIS forces MLflow to save to a local folder and prevents the 403 error!
-mlflow.set_tracking_uri("file:./mlruns")
 
 
 def eval_metrics(actual, pred):
@@ -54,7 +52,6 @@ if __name__ == "__main__":
     alpha = float(sys.argv[1]) if len(sys.argv) > 1 else 0.5
     l1_ratio = float(sys.argv[2]) if len(sys.argv) > 2 else 0.5
 
-    # Start the MLflow run
     with mlflow.start_run():
         lr = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, random_state=42)
         lr.fit(train_x, train_y)
@@ -68,16 +65,30 @@ if __name__ == "__main__":
         print("  MAE: %s" % mae)
         print("  R2: %s" % r2)
 
-        # Log parameters and metrics
         mlflow.log_param("alpha", alpha)
         mlflow.log_param("l1_ratio", l1_ratio)
         mlflow.log_metric("rmse", rmse)
         mlflow.log_metric("r2", r2)
         mlflow.log_metric("mae", mae)
 
-        # Infer signature (Optional but good practice)
-        predictions = lr.predict(train_x)
-        signature = infer_signature(train_x, predictions)
+        #predictions = lr.predict(train_x)
+        #signature = infer_signature(train_x, predictions)
 
-        # Log the model directly to your local file system
-        mlflow.sklearn.log_model(lr, "model", signature=signature)
+        ## For Remote server only(DAGShub)
+
+        remote_server_uri="https://dagshub.com/ayush860463/mlflowexperiments.mlflow"
+        mlflow.set_tracking_uri(remote_server_uri)
+
+        tracking_url_type_store = urlparse(mlflow.get_tracking_uri()).scheme
+
+        # Model registry does not work with file store
+        if tracking_url_type_store != "file":
+            # Register the model
+            # There are other ways to use the Model Registry, which depends on the use case,
+            # please refer to the doc for more information:
+            # https://mlflow.org/docs/latest/model-registry.html#api-workflow
+            mlflow.sklearn.log_model(
+                lr, "model", registered_model_name="ElasticnetWineModel"
+            )
+        else:
+            mlflow.sklearn.log_model(lr, "model")
